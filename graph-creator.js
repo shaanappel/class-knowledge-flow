@@ -26,7 +26,8 @@ document.onload = (function(d3, saveAs, Blob, undefined){
       justScaleTransGraph: false,
       lastKeyDown: -1,
       shiftNodeDrag: false,
-      selectedText: null
+      selectedText: null,
+      showFlow: false
     };
 
     // define arrow markers for graph links
@@ -168,6 +169,11 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     d3.select("#delete-graph").on("click", function(){
       thisGraph.deleteGraph(false);
     });
+
+    // handle show flow
+    d3.select("#show-flow").on("click", function(){
+      thisGraph.toggleFlow();
+    });
   };
 
   GraphCreator.prototype.setIdCt = function(idct){
@@ -195,6 +201,12 @@ document.onload = (function(d3, saveAs, Blob, undefined){
       d.y +=  d3.event.dy;
       thisGraph.updateGraph();
     }
+  };
+
+  GraphCreator.prototype.toggleFlow = function(){
+    var thisGraph = this;
+    thisGraph.state.showFlow = !thisGraph.state.showFlow;
+    thisGraph.updateGraph();
   };
 
   GraphCreator.prototype.deleteGraph = function(skipPrompt){
@@ -465,18 +477,22 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     thisGraph.circles.exit().remove();
 
     thisGraph.edges = []
-    for (var i = 0; i < thisGraph.nodes.length; i++) {
-      var node1 = thisGraph.nodes[i]
-      for (var j = 0; j < thisGraph.nodes.length; j++) {
-        var node2 = thisGraph.nodes[j]
-        if (node1.id < node2.id) {
-          var dist = thisGraph.distance(node1, node2);
-          if (dist < userConsts.connectDist) {
-            thisGraph.edges.push({source: node1, target: node2});
+
+    if (thisGraph.state.showFlow) {
+      for (var i = 0; i < thisGraph.nodes.length; i++) {
+        var node1 = thisGraph.nodes[i]
+        for (var j = 0; j < thisGraph.nodes.length; j++) {
+          var node2 = thisGraph.nodes[j]
+          if (node1.id < node2.id) {
+            var dist = thisGraph.distance(node1, node2);
+            if (dist < userConsts.connectDist) {
+              thisGraph.edges.push({source: node1, target: node2});
+            }
           }
         }
       }
     }
+    
 
 
     thisGraph.paths = thisGraph.paths.data(thisGraph.edges, function(d){
