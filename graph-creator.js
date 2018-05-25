@@ -2,8 +2,9 @@ document.onload = (function(d3, saveAs, Blob, undefined){
   "use strict";
 
   // TODO add user settings
-  var consts = {
-    defaultTitle: "random variable"
+  var userConsts = {
+    defaultTitle: "S",
+    connectDist: 250
   };
   var settings = {
     appendElSpec: "#graph"
@@ -59,8 +60,8 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     // displayed when dragging between nodes
     thisGraph.dragLine = svgG.append('svg:path')
           .attr('class', 'link dragline hidden')
-          .attr('d', 'M0,0L0,0')
-          .style('marker-end', 'url(#mark-end-arrow)');
+          .attr('d', 'M0,0L0,0');
+          
 
     // svg nodes and edges
     thisGraph.paths = svgG.append("g").selectAll("g");
@@ -189,9 +190,7 @@ document.onload = (function(d3, saveAs, Blob, undefined){
 
   GraphCreator.prototype.dragmove = function(d) {
     var thisGraph = this;
-    if (thisGraph.state.shiftNodeDrag){
-      thisGraph.dragLine.attr('d', 'M' + d.x + ',' + d.y + 'L' + d3.mouse(thisGraph.svgG.node())[0] + ',' + d3.mouse(this.svgG.node())[1]);
-    } else{
+    if (!thisGraph.state.shiftNodeDrag){
       d.x += d3.event.dx;
       d.y +=  d3.event.dy;
       thisGraph.updateGraph();
@@ -222,12 +221,13 @@ document.onload = (function(d3, saveAs, Blob, undefined){
 
 
   /* insert svg line breaks: taken from http://stackoverflow.com/questions/13241475/how-do-i-include-newlines-in-labels-in-d3-charts */
-  GraphCreator.prototype.insertTitleLinebreaks = function (gEl, title) {
+  GraphCreator.prototype.centerLabel = function (gEl, title) {
     var words = title.split(/\s+/g),
         nwords = words.length;
     var el = gEl.append("text")
           .attr("text-anchor","middle")
-          .attr("dy", "-" + (nwords-1)*7.5);
+          .attr("dy", ".35em")
+          .attr("class", "node-label");
 
     for (var i = 0; i < words.length; i++) {
       var tspan = el.append('tspan').text(words[i]);
@@ -315,46 +315,6 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     }
   };
 
-  /* place editable text on node in place of svg text */
-  GraphCreator.prototype.changeTextOfNode = function(d3node, d){
-    var thisGraph= this,
-        consts = thisGraph.consts,
-        htmlEl = d3node.node();
-    d3node.selectAll("text").remove();
-    var nodeBCR = htmlEl.getBoundingClientRect(),
-        curScale = nodeBCR.width/consts.nodeRadius,
-        placePad  =  5*curScale,
-        useHW = curScale > 1 ? nodeBCR.width*0.71 : consts.nodeRadius*1.42;
-    // replace with editableconent text
-    var d3txt = thisGraph.svg.selectAll("foreignObject")
-          .data([d])
-          .enter()
-          .append("foreignObject")
-          .attr("x", nodeBCR.left + placePad )
-          .attr("y", nodeBCR.top + placePad)
-          .attr("height", 2*useHW)
-          .attr("width", useHW)
-          .append("xhtml:p")
-          .attr("id", consts.activeEditId)
-          .attr("contentEditable", "true")
-          .text(d.title)
-          .on("mousedown", function(d){
-            d3.event.stopPropagation();
-          })
-          .on("keydown", function(d){
-            d3.event.stopPropagation();
-            if (d3.event.keyCode == consts.ENTER_KEY && !d3.event.shiftKey){
-              this.blur();
-            }
-          })
-          .on("blur", function(d){
-            d.title = this.textContent;
-            thisGraph.insertTitleLinebreaks(d3node, d.title);
-            d3.select(this.parentElement).remove();
-          });
-    return d3txt;
-  };
-
   // mouseup on nodes
   GraphCreator.prototype.circleMouseUp = function(d3node, d){
     var thisGraph = this,
@@ -370,20 +330,7 @@ document.onload = (function(d3, saveAs, Blob, undefined){
 
     thisGraph.dragLine.classed("hidden", true);
 
-    if (mouseDownNode !== d){
-      // we're in a different node: create new edge for mousedown edge and add to graph
-      var newEdge = {source: mouseDownNode, target: d};
-      var filtRes = thisGraph.paths.filter(function(d){
-        if (d.source === newEdge.target && d.target === newEdge.source){
-          thisGraph.edges.splice(thisGraph.edges.indexOf(d), 1);
-        }
-        return d.source === newEdge.source && d.target === newEdge.target;
-      });
-      if (!filtRes[0].length){
-        thisGraph.edges.push(newEdge);
-        thisGraph.updateGraph();
-      }
-    } else{
+    if (mouseDownNode ==d) {
       // we're in the same node
       if (state.justDragged) {
         // dragged, not clicked
@@ -392,10 +339,6 @@ document.onload = (function(d3, saveAs, Blob, undefined){
         // clicked, not dragged
         if (d3.event.shiftKey){
           // shift-clicked node: edit text content
-          var d3txt = thisGraph.changeTextOfNode(d3node, d);
-          var txtNode = d3txt.node();
-          thisGraph.selectElementContents(txtNode);
-          txtNode.focus();
         } else{
           if (state.selectedEdge){
             thisGraph.removeSelectFromEdge();
@@ -430,16 +373,9 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     } else if (state.graphMouseDown && d3.event.shiftKey){
       // clicked not dragged from svg
       var xycoords = d3.mouse(thisGraph.svgG.node()),
-          d = {id: thisGraph.idct++, title: consts.defaultTitle, x: xycoords[0], y: xycoords[1]};
+          d = {id: thisGraph.idct++, title: userConsts.defaultTitle, x: xycoords[0], y: xycoords[1]};
       thisGraph.nodes.push(d);
       thisGraph.updateGraph();
-      // make title of text immediently editable
-      var d3txt = thisGraph.changeTextOfNode(thisGraph.circles.filter(function(dval){
-        return dval.id === d.id;
-      }), d),
-          txtNode = d3txt.node();
-      thisGraph.selectElementContents(txtNode);
-      txtNode.focus();
     } else if (state.shiftNodeDrag){
       // dragged from node
       state.shiftNodeDrag = false;
@@ -469,10 +405,6 @@ document.onload = (function(d3, saveAs, Blob, undefined){
         thisGraph.spliceLinksForNode(selectedNode);
         state.selectedNode = null;
         thisGraph.updateGraph();
-      } else if (selectedEdge){
-        thisGraph.edges.splice(thisGraph.edges.indexOf(selectedEdge), 1);
-        state.selectedEdge = null;
-        thisGraph.updateGraph();
       }
       break;
     }
@@ -482,44 +414,19 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     this.state.lastKeyDown = -1;
   };
 
+  GraphCreator.prototype.distance = function(node1, node2) {
+    var a = node1.x - node2.x;
+    var b = node1.y - node2.y;
+    return Math.sqrt( a*a + b*b );
+  }
+
   // call to propagate changes to graph
   GraphCreator.prototype.updateGraph = function(){
-
+    console.log("Update Graph")
     var thisGraph = this,
         consts = thisGraph.consts,
         state = thisGraph.state;
 
-    thisGraph.paths = thisGraph.paths.data(thisGraph.edges, function(d){
-      return String(d.source.id) + "+" + String(d.target.id);
-    });
-    var paths = thisGraph.paths;
-    // update existing paths
-    paths.style('marker-end', 'url(#end-arrow)')
-      .classed(consts.selectedClass, function(d){
-        return d === state.selectedEdge;
-      })
-      .attr("d", function(d){
-        return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
-      });
-
-    // add new paths
-    paths.enter()
-      .append("path")
-      .style('marker-end','url(#end-arrow)')
-      .classed("link", true)
-      .attr("d", function(d){
-        return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
-      })
-      .on("mousedown", function(d){
-        thisGraph.pathMouseDown.call(thisGraph, d3.select(this), d);
-        }
-      )
-      .on("mouseup", function(d){
-        state.mouseDownLink = null;
-      });
-
-    // remove old links
-    paths.exit().remove();
 
     // update existing nodes
     thisGraph.circles = thisGraph.circles.data(thisGraph.nodes, function(d){ return d.id;});
@@ -551,11 +458,56 @@ document.onload = (function(d3, saveAs, Blob, undefined){
       .attr("r", String(consts.nodeRadius));
 
     newGs.each(function(d){
-      thisGraph.insertTitleLinebreaks(d3.select(this), d.title);
+      thisGraph.centerLabel(d3.select(this), d.title);
     });
 
     // remove old nodes
     thisGraph.circles.exit().remove();
+
+    thisGraph.edges = []
+    for (var i = 0; i < thisGraph.nodes.length; i++) {
+      var node1 = thisGraph.nodes[i]
+      for (var j = 0; j < thisGraph.nodes.length; j++) {
+        var node2 = thisGraph.nodes[j]
+        if (node1.id < node2.id) {
+          var dist = thisGraph.distance(node1, node2);
+          if (dist < userConsts.connectDist) {
+            thisGraph.edges.push({source: node1, target: node2});
+          }
+        }
+      }
+    }
+
+
+    thisGraph.paths = thisGraph.paths.data(thisGraph.edges, function(d){
+      return String(d.source.id) + "+" + String(d.target.id);
+    });
+    var paths = thisGraph.paths;
+    // update existing paths
+    paths.classed(consts.selectedClass, function(d){
+        return d === state.selectedEdge;
+      })
+      .attr("d", function(d){
+        return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
+      });
+
+    // add new paths
+    paths.enter()
+      .append("path")
+      .classed("link", true)
+      .attr("d", function(d){
+        return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
+      })
+      .on("mousedown", function(d){
+        thisGraph.pathMouseDown.call(thisGraph, d3.select(this), d);
+        }
+      )
+      .on("mouseup", function(d){
+        state.mouseDownLink = null;
+      });
+
+    // remove old links
+    paths.exit().remove();
   };
 
   GraphCreator.prototype.zoomed = function(){
