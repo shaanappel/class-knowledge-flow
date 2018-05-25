@@ -97,9 +97,52 @@ g.selected:hover circle{
 
 path.link {
     fill: none;
-    stroke: #333;
+    stroke: #41f471;
+    opacity: 0.5;
     stroke-width: 8px;
+    stroke-dasharray: 10, 4;
+    animation: flow 3s ease infinite;
+    -webkit-animation: flow 3s linear infinite;
     cursor: default;
+}
+
+path.teacher-link {
+    fill: none;
+    stroke: #4245f4;
+    opacity: 0.5;
+    stroke-width: 8px;
+    stroke-dasharray: 10, 4;
+    animation: flow 3s ease infinite;
+    -webkit-animation: flow 3s linear infinite;
+    cursor: default;
+}
+
+@keyframes flow {
+  0% {
+    stroke-dashoffset: 8;
+  }
+
+  50% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: 8;
+  }
+}
+
+@-webkit-keyframes flow {
+  0% {
+    stroke-dashoffset: 8;
+  }
+
+  50% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: 8;
+  }
 }
 
 path.link:hover{

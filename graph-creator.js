@@ -4,7 +4,11 @@ document.onload = (function(d3, saveAs, Blob, undefined){
   // TODO add user settings
   var userConsts = {
     defaultTitle: "S",
-    connectDist: 250
+    connectDist: 250,
+    initTeachPos: {
+      x: 300,
+      y: 100
+    }
   };
   var settings = {
     appendElSpec: "#graph"
@@ -16,6 +20,8 @@ document.onload = (function(d3, saveAs, Blob, undefined){
 
     thisGraph.nodes = nodes || [];
     thisGraph.edges = edges || [];
+
+    thisGraph.addTeacherNode();
 
     thisGraph.state = {
       selectedNode: null,
@@ -202,6 +208,16 @@ document.onload = (function(d3, saveAs, Blob, undefined){
       thisGraph.updateGraph();
     }
   };
+
+  GraphCreator.prototype.addTeacherNode = function() {
+    var thisGraph = this;
+    var d = {id: thisGraph.idct++, title: "T", 
+      x: userConsts.initTeachPos.x, y: userConsts.initTeachPos.y,
+      isTeacher: true};
+    thisGraph.nodes.push(d);
+  };
+
+  
 
   GraphCreator.prototype.toggleFlow = function(){
     var thisGraph = this;
@@ -412,7 +428,7 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     case consts.BACKSPACE_KEY:
     case consts.DELETE_KEY:
       d3.event.preventDefault();
-      if (selectedNode){
+      if (selectedNode && !selectedNode.isTeacher){
         thisGraph.nodes.splice(thisGraph.nodes.indexOf(selectedNode), 1);
         thisGraph.spliceLinksForNode(selectedNode);
         state.selectedNode = null;
@@ -476,6 +492,24 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     // remove old nodes
     thisGraph.circles.exit().remove();
 
+    function intersectsAny(node1, node2, nodes) {
+      //construct line
+      var a = [node1.x, node1.y];
+      var b = [node2.x, node2.y];
+
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (node.id == node1.id || node.id == node2.id) {
+          continue;
+        }
+        var c = [node.x, node.y, consts.nodeRadius]
+        if (doesIntersect(a, b, c)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     thisGraph.edges = []
 
     if (thisGraph.state.showFlow) {
@@ -485,8 +519,10 @@ document.onload = (function(d3, saveAs, Blob, undefined){
           var node2 = thisGraph.nodes[j]
           if (node1.id < node2.id) {
             var dist = thisGraph.distance(node1, node2);
-            if (dist < userConsts.connectDist) {
-              thisGraph.edges.push({source: node1, target: node2});
+            var isTeacher = node1.isTeacher || node2.isTeacher;
+            var distCond = (dist < userConsts.connectDist) || isTeacher;
+            if (distCond && !intersectsAny(node1, node2, thisGraph.nodes)) {
+              thisGraph.edges.push({source: node1, target: node2, isTeacher: isTeacher});
             }
           }
         }
@@ -511,6 +547,9 @@ document.onload = (function(d3, saveAs, Blob, undefined){
     paths.enter()
       .append("path")
       .classed("link", true)
+      .classed("teacher-link", function(d) {
+        return d.isTeacher;
+      })
       .attr("d", function(d){
         return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
       })
